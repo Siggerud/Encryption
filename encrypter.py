@@ -174,6 +174,7 @@ if __name__ == '__main__':
         action = "decrypt"
     else:
         print(f"{answer} not valid option")
+        exit(1)
         
     for file in files:
         print(file)
@@ -199,7 +200,7 @@ if __name__ == '__main__':
                     exit(1)
                 
             rename_file(filePath, action)
-            print(f"{action}ing {file}")
+            print(f"{action}ing {file}...")
             
         print(f"{len(files)} files {action}ed")
         
