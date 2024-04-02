@@ -1,23 +1,16 @@
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from base64 import urlsafe_b64encode
 from os import listdir, rename, getenv, path
 from dotenv import load_dotenv
-from datetime import date
-
-
-def write_key():
-    # Generates a key and saves it into a file
-    
-    key = Fernet.generate_key()
-    
-    with open("key.key", "wb") as key_file:
-        key_file.write(key)
-  
+from datetime import date 
+from getpass import getpass
    
-def load_key():
-    # Loads the key from the current directory named 'key.key'
-    
-    return open("key.key", "rb").read()
-    
+"""
+Encrypts the filename with given key
+"""
 def encrypt(filename, key):
     # Given a filename (str) and key (bytes), it encrypts the file and write it
     
@@ -33,7 +26,9 @@ def encrypt(filename, key):
     with open(filename, "wb") as file:
         file.write(encrypted_data)
         
-    
+"""
+Decrypts the filename with given key
+"""  
 def decrypt(filename, key):
     # Given a filename (str) and key(bytes), it decrypts the file and write it
     
@@ -43,14 +38,24 @@ def decrypt(filename, key):
         # read the encrypted data
         encrypted_data = file.read()
         
-    # decrypt data
-    decrypted_data = f.decrypt(encrypted_data)
+    # decrypt data, return False if wrong key is given
+    try:
+        decrypted_data = f.decrypt(encrypted_data)
+    except InvalidToken:
+        return False
     
     # write the original file
     with open(filename, "wb") as file:
         file.write(decrypted_data)
+        
+    # return True if no errors have happened
+    return True
     
+"""
+Gets either the encrypted or decrypted files 
+"""
 def get_files(flag):
+    load_dotenv()
     folderPath = getenv("FOLDERPATH")
     print(folderPath)
     wantedFiles = []
@@ -66,7 +71,9 @@ def get_files(flag):
                 
     return wantedFiles
 
-    
+"""
+Renames files to mark them as either encrypted or not
+"""  
 def rename_file(oldPath, action):
     if action == "encrypt":
         oldEnding = ".txt"
@@ -80,18 +87,40 @@ def rename_file(oldPath, action):
     
     rename(oldPath, newPath)
     
-def check_if_password_correct():
+"""
+Generate key from user password
+"""
+def get_key(password):
     load_dotenv()
-    password = getenv("PASSWORD")
 
-    print("Enter the password to enter:")
-    userPassword = input()
+    salt = bytes(getenv("SALT"), 'utf-8')
     
-    if password != userPassword:
-        return False
-        
-    return True
+    kdf = PBKDF2HMAC (
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
+)
+    key = urlsafe_b64encode(kdf.derive(password)).decode()
     
+    return key
+
+"""
+Gets a password for either encrypting or decrypting
+"""    
+def get_password_from_user(action): 
+    if action == "encrypt":
+        prompt = "Set the password for encryption: "
+    elif action == "decrypt":
+        prompt = "Enter the password for decryption: "
+    userPassword = getpass(prompt)
+    
+    return userPassword.encode()
+    
+"""
+Creates a file with todays date in filename
+"""   
 def create_file():
     load_dotenv()
     today = date.today()
@@ -104,19 +133,27 @@ def create_file():
     
     if check_if_file_exists(filePath):
         print("File already exists")
-    else:
-        file = open(filePath, "w")
-        file.close()
+        print("Do you want to overwrite file?")
+        print("y/n")
         
-        print(f"File {filename} created")
+        answer = input()
+        if answer != "y":
+            return
+          
+    file = open(filePath, "w")
+    file.close()
     
+    print(f"File {filename} created")
+    
+"""
+Checks if the file exists
+"""
 def check_if_file_exists(filepath):
     if path.exists(filepath):
         return True
     return False
         
-            
-        
+                
 if __name__ == '__main__':
     print("What do you want to do?")
     print("1. Encrypt files")
@@ -129,16 +166,14 @@ if __name__ == '__main__':
         create_file()
         exit(1)
     
-    if check_if_password_correct() == False:
-        print("Wrong password")
-        exit(1)
-    
     if answer == "1":
         files = get_files("decrypted")
         action = "encrypt"
     elif answer == "2":
         files = get_files("encrypted")
         action = "decrypt"
+    else:
+        print(f"{answer} not valid option")
         
     for file in files:
         print(file)
@@ -149,11 +184,8 @@ if __name__ == '__main__':
     answer = input()
     
     if answer == "y":
-        if check_if_file_exists("key.key") == False:
-            print("hey")
-            write_key()
-        
-        key = load_key()
+        password = get_password_from_user(action)
+        key = get_key(password)
         
         folderPath = getenv("FOLDERPATH")
         for file in files:
@@ -161,14 +193,16 @@ if __name__ == '__main__':
             if action == "encrypt":
                 encrypt(filePath, key)
             elif action == "decrypt":
-                decrypt(filePath, key)
+                success = decrypt(filePath, key)
+                if success == False:
+                    print("Wrong decryption key entered")
+                    exit(1)
                 
             rename_file(filePath, action)
             print(f"{action}ing {file}")
             
         print(f"{len(files)} files {action}ed")
         
-        # TODO: legg ut paa github
-        # lag key fra password - https://www.youtube.com/watch?v=hsRR9-aZZ4Q&ab_channel=PracticalPythonSolutions
+
     
     
