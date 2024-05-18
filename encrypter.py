@@ -7,6 +7,7 @@ from os import listdir, rename, getenv, path
 from dotenv import load_dotenv
 from datetime import date 
 from getpass import getpass
+import subprocess
    
 """
 Encrypts the filename with given key
@@ -118,10 +119,13 @@ def get_password_from_user(action):
     
     return userPassword.encode()
     
-"""
-Creates a file with todays date in filename
-"""   
-def create_file():
+def open_file(filePath):
+    load_dotenv()
+    
+    notepadPath = getenv("NOTEPADFILEPATH")
+    subprocess.run([notepadPath, filePath])
+    
+def get_file_path():
     load_dotenv()
     today = date.today()
     
@@ -131,6 +135,12 @@ def create_file():
     folderPath = getenv("FOLDERPATH")
     filePath = folderPath + "/" + filename
     
+    return filePath
+    
+"""
+Creates a file with todays date in filename
+"""   
+def create_file(filePath):
     if check_if_file_exists(filePath):
         print("File already exists")
         print("Do you want to overwrite file?")
@@ -138,12 +148,14 @@ def create_file():
         
         answer = input()
         if answer != "y":
-            return
+            return False
           
     file = open(filePath, "w")
     file.close()
     
-    print(f"File {filename} created")
+    print(f"File created")
+    
+    return True
     
 """
 Checks if the file exists
@@ -163,7 +175,9 @@ if __name__ == '__main__':
     answer = input()
     
     if answer == "3":
-        create_file()
+        filePath = get_file_path()
+        if create_file(filePath):
+            open_file(filePath)
         exit(1)
     
     if answer == "1":
